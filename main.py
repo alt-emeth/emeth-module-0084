@@ -1,7 +1,20 @@
 import hashlib
 import json
+import numpy as np
 import os
 import sys
+
+is_cuda = False
+
+try:
+    import pycuda.autoinit
+    import pycuda.driver as cuda
+    from pycuda.compiler import SourceModule
+
+    is_cuda = cuda.Device.count() > 0
+
+except ImportError:
+    None
 
 if len(sys.argv) != 4:
     print("Usage: python main.py <job_id> <input_dir> <output_dir>")
@@ -29,17 +42,47 @@ if not len(errors):
 
     nonce = 0
 
-    challenge_hash = hashlib.sha256(challenge)
-    while True:
-        hash = challenge_hash.copy()
-        hash.update(nonce.to_bytes(32, byteorder='big'))
+    if is_cuda:
+        mod = SourceModule(open("sha256.cu", "r").read())
 
-        hash_result = hash.digest()
+        sha256_cuda = mod.get_function("sha256_cuda")
 
-        if hash_result <= min_value:
-            break
+        results = np.zeros(65536, dtype=np.uint8)
 
-        nonce += 1
+        base = 0
+        while True:
+            prefix = np.frombuffer(
+                challenge + base.to_bytes(30, byteorder="big"), dtype=np.uint8)
+
+            sha256_cuda(
+                cuda.In(prefix),
+                np.uint32(prefix.size),
+                cuda.In(np.frombuffer(min_value)),
+                cuda.Out(results),
+                block=(256, 1, 1),
+                grid=(256, 1)
+            )
+
+            found = np.where(results == 1)[0]
+            if found.size > 0:
+                nonce = base * 65536 + found[0].item()
+                break
+
+            base = base + 1
+    else:
+        print("Warning: No CUDA device has been detected, fallback to CPU-based routine...", file=sys.stderr)
+
+        challenge_hash = hashlib.sha256(challenge)
+        while True:
+            hash = challenge_hash.copy()
+            hash.update(nonce.to_bytes(32, byteorder='big'))
+
+            hash_result = hash.digest()
+
+            if hash_result <= min_value:
+                break
+
+            nonce += 1
 
     output_file = os.path.join(output_dir, f'output-{job_id}.dat')
 
