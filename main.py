@@ -1,3 +1,4 @@
+import argparse
 import hashlib
 import json
 import numpy as np
@@ -16,15 +17,22 @@ try:
 except ImportError:
     None
 
-if len(sys.argv) != 4:
-    print("Usage: python main.py <job_id> <input_dir> <output_dir>")
+parser = argparse.ArgumentParser(usage="%(prog)s [options] job_id input_dir_or_file output_dir_or_file")
+parser.add_argument("--dataset-type", dest="dataset_type")
+args, remain = parser.parse_known_args()
+
+if len(remain) < 3:
+    parser.print_help()
     sys.exit(1)
 
-job_id, input_dir, output_dir = sys.argv[1], sys.argv[2], sys.argv[3]
+job_id, input_dir_or_file, output_dir_or_file = remain[-3], remain[-2], remain[-1]
 
 errors = []
 
-input_file = os.path.join(input_dir, f'input-{job_id}.dat')
+if args.dataset_type == 'direct':
+    input_file = input_dir_or_file
+else:
+    input_file = os.path.join(input_dir_or_file, f'input-{job_id}.dat')
 
 with open(input_file, 'r', encoding='utf-8') as f:
     lines = f.read().splitlines()
@@ -32,7 +40,7 @@ with open(input_file, 'r', encoding='utf-8') as f:
 input = lines[0]
 
 if len(input) != 194:
-    errors.append(f"input-{job_id}.dat#L1: Invalid input length.")
+    errors.append(f"{input_file}#L1: Invalid input length.")
 
 if not len(errors):
     input_bytes = bytes.fromhex(input)
@@ -84,13 +92,22 @@ if not len(errors):
 
             nonce += 1
 
-    output_file = os.path.join(output_dir, f'output-{job_id}.dat')
+    if args.dataset_type == 'direct':
+        output_file = output_dir_or_file
+    else:
+        output_file = os.path.join(output_dir_or_file, f'output-{job_id}.dat')
 
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(f'{(challenge + nonce.to_bytes(32, byteorder="big")).hex()}\n')
 
 if len(errors) > 0:
-    errors_file = os.path.join(output_dir, 'error.json')
+    if args.dataset_type == 'direct':
+        for error in errors:
+            print(error, file=sys.stderr)
 
-    with open(errors_file, 'w', encoding='utf-8') as f:
-        f.write(json.dumps({"errors": errors}))
+        sys.exit(1)
+    else:
+        errors_file = os.path.join(output_dir_or_file, 'error.json')
+
+        with open(errors_file, 'w', encoding='utf-8') as f:
+            f.write(json.dumps({"errors": errors}))
