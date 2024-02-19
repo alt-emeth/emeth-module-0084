@@ -4,6 +4,7 @@ import json
 import numpy as np
 import os
 import sys
+import time
 
 is_cuda = False
 
@@ -57,6 +58,9 @@ if not len(errors):
 
         results = np.zeros(65536, dtype=np.uint8)
 
+        start_time = time.time()
+        count = 0
+
         base = 0
         while True:
             prefix = np.frombuffer(
@@ -77,8 +81,19 @@ if not len(errors):
                 break
 
             base = base + 1
+
+            count += 1
+            if time.time() - start_time >= 60:
+                print(f"Hashrate: {count * 65536 / 60 / 1000 / 1000} MH/s", file=sys.stderr)
+
+                start_time = time.time()
+                count = 0
+
     else:
         print("Warning: No CUDA device has been detected, fallback to CPU-based routine...", file=sys.stderr)
+
+        start_time = time.time()
+        count = 0
 
         challenge_hash = hashlib.sha256(challenge)
         while True:
@@ -91,6 +106,13 @@ if not len(errors):
                 break
 
             nonce += 1
+
+            count += 1
+            if time.time() - start_time >= 60:
+                print(f"Hashrate: {count / 60 / 1000 / 1000} MH/s", file=sys.stderr)
+
+                start_time = time.time()
+                count = 0
 
     if args.dataset_type == 'direct':
         output_file = output_dir_or_file
