@@ -84,7 +84,7 @@ if not len(errors):
 
             count += 1
             if time.time() - start_time >= 60:
-                print(f"Hashrate: {count * 65536 / 60 / 1000 / 1000} MH/s", file=sys.stderr)
+                print(f"Hashrate: {count * 65536 / 60 / 1000 / 1000} MH/s")
 
                 start_time = time.time()
                 count = 0
@@ -109,7 +109,7 @@ if not len(errors):
 
             count += 1
             if time.time() - start_time >= 60:
-                print(f"Hashrate: {count / 60 / 1000 / 1000} MH/s", file=sys.stderr)
+                print(f"Hashrate: {count / 60 / 1000 / 1000} MH/s")
 
                 start_time = time.time()
                 count = 0
